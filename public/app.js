@@ -54,8 +54,32 @@ function initialize() {
   loadPlantState();
   bindEvents();
   updateBrowserSupport();
+
+  if (!checkRequiredElements()) {
+    return;
+  }
+
   updateReadout();
   addLog('앱이 준비되었습니다.', 'info');
+}
+
+function checkRequiredElements() {
+  const missing = Object.entries(elements)
+    .filter(([, element]) => !element)
+    .map(([name]) => name);
+
+  if (missing.length === 0) {
+    return true;
+  }
+
+  addLog(`화면 요소를 찾지 못했습니다: ${missing.join(', ')}. 강력 새로고침(Ctrl+Shift+R) 후 다시 시도하세요.`, 'error');
+  return false;
+}
+
+function setTextContent(element, text) {
+  if (element) {
+    element.textContent = text;
+  }
 }
 
 function bindEvents() {
@@ -202,7 +226,11 @@ async function readSerialLoop() {
       buffer = lines.pop() || '';
 
       for (const line of lines) {
-        await handleLine(line.trim());
+        try {
+          await handleLine(line.trim());
+        } catch (error) {
+          addLog(`처리 오류: ${error.message}`, 'error');
+        }
       }
     }
   } catch (error) {
@@ -396,12 +424,12 @@ async function safeClosePort() {
 }
 
 function updateReadout() {
-  elements.deviceValue.textContent = plantState.device;
-  elements.lightValue.textContent = plantState.light;
-  elements.statusValue.textContent = plantState.status;
-  elements.waterValue.textContent = `${plantState.water} (${getWaterLabel(plantState.water)})`;
-  elements.nutritionValue.textContent = `${plantState.nutrition} (${getNutritionLabel(plantState.nutrition)})`;
-  elements.lastEventValue.textContent = plantState.lastEvent;
+  setTextContent(elements.deviceValue, plantState.device);
+  setTextContent(elements.lightValue, String(plantState.light));
+  setTextContent(elements.statusValue, plantState.status);
+  setTextContent(elements.waterValue, `${plantState.water} (${getWaterLabel(plantState.water)})`);
+  setTextContent(elements.nutritionValue, `${plantState.nutrition} (${getNutritionLabel(plantState.nutrition)})`);
+  setTextContent(elements.lastEventValue, plantState.lastEvent);
 }
 
 function setState(element, text, kind) {
