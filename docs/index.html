@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>micro:bit Firebase Web Bridge</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>micro:bit Firebase Bridge</h1>
+        <p>브라우저에서 micro:bit USB 시리얼 데이터를 받아 Firebase에 저장합니다.</p>
+      </div>
+      <div class="status-pill" id="browserSupport">확인 중</div>
+    </header>
+
+    <main class="layout">
+      <section class="panel connection-panel" aria-labelledby="connectTitle">
+        <div class="section-heading">
+          <h2 id="connectTitle">연결</h2>
+          <span id="connectionState" class="state state-idle">대기</span>
+        </div>
+
+        <div class="button-row">
+          <button id="connectButton" class="primary-button" type="button">
+            <span aria-hidden="true">●</span>
+            micro:bit 연결
+          </button>
+          <button id="disconnectButton" class="secondary-button" type="button" disabled>
+            연결 끊기
+          </button>
+        </div>
+
+        <dl class="readout-grid" aria-label="현재 상태">
+          <div>
+            <dt>장치</dt>
+            <dd id="deviceValue">-</dd>
+          </div>
+          <div>
+            <dt>밝기</dt>
+            <dd id="lightValue">-</dd>
+          </div>
+          <div>
+            <dt>상태</dt>
+            <dd id="statusValue">-</dd>
+          </div>
+          <div>
+            <dt>동작</dt>
+            <dd id="actionValue">-</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section class="panel settings-panel" aria-labelledby="settingsTitle">
+        <div class="section-heading">
+          <h2 id="settingsTitle">Firebase 설정</h2>
+          <span id="saveState" class="state state-idle">저장 대기</span>
+        </div>
+
+        <label class="field">
+          <span>Database URL</span>
+          <input id="firebaseBaseUrl" type="url" value="https://test1-724ff-default-rtdb.firebaseio.com" spellcheck="false">
+        </label>
+
+        <div class="field-row">
+          <label class="field">
+            <span>기본 장치 ID</span>
+            <input id="defaultDeviceId" type="text" value="device01" spellcheck="false">
+          </label>
+          <label class="field">
+            <span>Baud Rate</span>
+            <select id="baudRate">
+              <option value="115200" selected>115200</option>
+              <option value="9600">9600</option>
+              <option value="57600">57600</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="toggle-row">
+          <label>
+            <input id="skipDuplicate" type="checkbox">
+            같은 밝기와 상태가 연속이면 저장 생략
+          </label>
+          <button id="testFirebaseButton" class="secondary-button" type="button">Firebase 테스트</button>
+        </div>
+      </section>
+
+      <section class="panel wide-panel" aria-labelledby="logTitle">
+        <div class="section-heading">
+          <h2 id="logTitle">수신 로그</h2>
+          <button id="clearLogButton" class="icon-button" type="button" aria-label="로그 지우기" title="로그 지우기">×</button>
+        </div>
+        <div id="liveRegion" class="sr-only" aria-live="polite"></div>
+        <ol id="logList" class="log-list" aria-label="micro:bit 수신 및 Firebase 저장 기록"></ol>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Chrome 또는 Edge 필요</span>
+      <span>micro:bit MakeCode에서 <code>serial.writeLine()</code> 사용</span>
+      <span>저장 위치: <code>plants/{device}</code></span>
+    </footer>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
