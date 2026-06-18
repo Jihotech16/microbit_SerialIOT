@@ -1,3 +1,12 @@
+const WATER_MIN = 40;
+const WATER_MAX = 80;
+const NUTRITION_MIN = 30;
+const NUTRITION_MAX = 70;
+const WATER_PER_PRESS = 20;
+const NUTRITION_PER_PRESS = 15;
+const DEFAULT_WATER = 50;
+const DEFAULT_NUTRITION = 50;
+
 const elements = {
   browserSupport: document.querySelector('#browserSupport'),
   connectionState: document.querySelector('#connectionState'),
@@ -13,23 +22,39 @@ const elements = {
   deviceValue: document.querySelector('#deviceValue'),
   lightValue: document.querySelector('#lightValue'),
   statusValue: document.querySelector('#statusValue'),
-  actionValue: document.querySelector('#actionValue'),
+  waterValue: document.querySelector('#waterValue'),
+  nutritionValue: document.querySelector('#nutritionValue'),
+  lastEventValue: document.querySelector('#lastEventValue'),
   logList: document.querySelector('#logList'),
   liveRegion: document.querySelector('#liveRegion')
 };
 
 const validStatuses = new Set(['dark', 'good', 'bright']);
-const validActions = new Set(['auto', 'check', 'water']);
+const validActions = new Set(['auto', 'water', 'fertilizer']);
 
 let port = null;
 let reader = null;
 let keepReading = false;
 let lastUploadedSignature = '';
+let plantState = createPlantState(getSettings().defaultDeviceId);
+
+function createPlantState(deviceId) {
+  return {
+    device: deviceId,
+    light: 0,
+    status: '-',
+    water: DEFAULT_WATER,
+    nutrition: DEFAULT_NUTRITION,
+    lastEvent: '-'
+  };
+}
 
 function initialize() {
   loadSettings();
+  loadPlantState();
   bindEvents();
   updateBrowserSupport();
+  updateReadout();
   addLog('앱이 준비되었습니다.', 'info');
 }
 
@@ -89,6 +114,52 @@ function getSettings() {
     baudRate: Number(elements.baudRate.value) || 115200,
     skipDuplicate: elements.skipDuplicate.checked
   };
+}
+
+function getPlantStateKey(deviceId) {
+  return `microbitPlantState:${deviceId}`;
+}
+
+function loadPlantState() {
+  const deviceId = getSettings().defaultDeviceId;
+  const saved = JSON.parse(localStorage.getItem(getPlantStateKey(deviceId)) || '{}');
+
+  plantState = {
+    device: deviceId,
+    light: Number(saved.light) || 0,
+    status: saved.status || '-',
+    water: Number.isFinite(Number(saved.water)) ? Number(saved.water) : DEFAULT_WATER,
+    nutrition: Number.isFinite(Number(saved.nutrition)) ? Number(saved.nutrition) : DEFAULT_NUTRITION,
+    lastEvent: saved.lastEvent || '-'
+  };
+}
+
+function savePlantState() {
+  localStorage.setItem(getPlantStateKey(plantState.device), JSON.stringify(plantState));
+}
+
+function getWaterLabel(value) {
+  if (value < WATER_MIN) {
+    return '부족';
+  }
+
+  if (value > WATER_MAX) {
+    return '과습';
+  }
+
+  return '적정';
+}
+
+function getNutritionLabel(value) {
+  if (value < NUTRITION_MIN) {
+    return '부족';
+  }
+
+  if (value > NUTRITION_MAX) {
+    return '과다';
+  }
+
+  return '적정';
 }
 
 async function connectSerial() {
@@ -165,24 +236,56 @@ async function handleLine(line) {
     return;
   }
 
-  const payload = {
-    ...result.data,
-    updatedAt: Date.now()
-  };
+  const { action, device, light, status } = result.data;
+  plantState.device = device;
 
-  updateReadout(payload);
+  if (action === 'auto') {
+    plantState.light = light;
+    plantState.status = status;
+    updateReadout();
 
-  const signature = `${payload.light}|${payload.status}`;
-  if (getSettings().skipDuplicate && signature === lastUploadedSignature) {
-    addLog('중복 데이터라 Firebase 저장을 생략했습니다.', 'info');
+    const signature = `${plantState.light}|${plantState.status}`;
+    if (getSettings().skipDuplicate && signature === lastUploadedSignature) {
+      addLog('밝기 변화 없음. Firebase 저장을 생략했습니다.', 'info');
+      savePlantState();
+      return;
+    }
+
+    const uploaded = await uploadToFirebase(buildFirebasePayload());
+    if (uploaded) {
+      lastUploadedSignature = signature;
+    }
+    savePlantState();
     return;
   }
 
-  const uploaded = await uploadToFirebase(payload);
+  plantState.light = light;
+  plantState.status = status;
 
-  if (uploaded) {
-    lastUploadedSignature = signature;
+  if (action === 'water') {
+    plantState.water += WATER_PER_PRESS;
+    plantState.lastEvent = '물 주기';
+    addLog(`수분 +${WATER_PER_PRESS} → ${plantState.water} (${getWaterLabel(plantState.water)})`, 'success');
+  } else if (action === 'fertilizer') {
+    plantState.nutrition += NUTRITION_PER_PRESS;
+    plantState.lastEvent = '영양제';
+    addLog(`영양 +${NUTRITION_PER_PRESS} → ${plantState.nutrition} (${getNutritionLabel(plantState.nutrition)})`, 'success');
   }
+
+  updateReadout();
+  await uploadToFirebase(buildFirebasePayload());
+  savePlantState();
+}
+
+function buildFirebasePayload() {
+  return {
+    device: plantState.device,
+    light: plantState.light,
+    status: plantState.status,
+    water: plantState.water,
+    nutrition: plantState.nutrition,
+    updatedAt: Date.now()
+  };
 }
 
 function validateData(line) {
@@ -215,7 +318,7 @@ function validateData(line) {
 
   const action = parsed.action ?? 'auto';
   if (!validActions.has(action)) {
-    return { ok: false, reason: 'action 값은 auto, check, water 중 하나여야 합니다.' };
+    return { ok: false, reason: 'action 값은 auto, water, fertilizer 중 하나여야 합니다.' };
   }
 
   return {
@@ -263,16 +366,10 @@ async function uploadToFirebase(payload) {
 }
 
 async function testFirebase() {
-  const settings = getSettings();
-  const payload = {
-    device: settings.defaultDeviceId,
-    light: 0,
-    status: 'dark',
-    action: 'check',
-    updatedAt: Date.now()
-  };
-
-  updateReadout(payload);
+  loadPlantState();
+  const payload = buildFirebasePayload();
+  payload.updatedAt = Date.now();
+  updateReadout();
   await uploadToFirebase(payload);
 }
 
@@ -298,11 +395,13 @@ async function safeClosePort() {
   }
 }
 
-function updateReadout(payload) {
-  elements.deviceValue.textContent = payload.device;
-  elements.lightValue.textContent = payload.light;
-  elements.statusValue.textContent = payload.status;
-  elements.actionValue.textContent = payload.action;
+function updateReadout() {
+  elements.deviceValue.textContent = plantState.device;
+  elements.lightValue.textContent = plantState.light;
+  elements.statusValue.textContent = plantState.status;
+  elements.waterValue.textContent = `${plantState.water} (${getWaterLabel(plantState.water)})`;
+  elements.nutritionValue.textContent = `${plantState.nutrition} (${getNutritionLabel(plantState.nutrition)})`;
+  elements.lastEventValue.textContent = plantState.lastEvent;
 }
 
 function setState(element, text, kind) {

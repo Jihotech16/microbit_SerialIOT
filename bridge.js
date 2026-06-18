@@ -18,13 +18,32 @@ const DEFAULT_CONFIG = {
 
 const MICROBIT_KEYWORDS = ['micro:bit', 'microbit', 'mbed', 'DAPLink', 'ARM'];
 const VALID_STATUSES = new Set(['dark', 'good', 'bright']);
-const VALID_ACTIONS = new Set(['auto', 'check', 'water']);
+const VALID_ACTIONS = new Set(['auto', 'water', 'fertilizer']);
+const WATER_MIN = 40;
+const WATER_MAX = 80;
+const NUTRITION_MIN = 30;
+const NUTRITION_MAX = 70;
+const WATER_PER_PRESS = 20;
+const NUTRITION_PER_PRESS = 15;
+const DEFAULT_WATER = 50;
+const DEFAULT_NUTRITION = 50;
 
 let isShuttingDown = false;
 let activePort = null;
 let readlineInterface = null;
 let lastUploadedSignature = '';
 let config = DEFAULT_CONFIG;
+let plantState = createPlantState(DEFAULT_CONFIG.defaultDeviceId);
+
+function createPlantState(deviceId) {
+  return {
+    device: deviceId,
+    light: 0,
+    status: 'unknown',
+    water: DEFAULT_WATER,
+    nutrition: DEFAULT_NUTRITION
+  };
+}
 
 async function main() {
   config = await loadConfig();
@@ -258,22 +277,52 @@ async function handleIncomingLine(line) {
     return;
   }
 
-  const payload = {
-    ...validation.data,
-    updatedAt: Date.now()
-  };
+  const { action, device, light, status } = validation.data;
+  plantState.device = device;
 
-  const duplicateSignature = `${payload.light}|${payload.status}`;
-  if (config.skipDuplicate && duplicateSignature === lastUploadedSignature) {
-    console.log('중복 데이터라 Firebase 저장을 생략했습니다.');
-    await logMessage('중복 데이터 생략');
+  if (action === 'auto') {
+    plantState.light = light;
+    plantState.status = status;
+
+    const duplicateSignature = `${plantState.light}|${plantState.status}`;
+    if (config.skipDuplicate && duplicateSignature === lastUploadedSignature) {
+      console.log('밝기 변화 없음. Firebase 저장을 생략했습니다.');
+      await logMessage('밝기 변화 없음. 저장 생략');
+      return;
+    }
+
+    const uploaded = await uploadToFirebase(buildFirebasePayload());
+    if (uploaded) {
+      lastUploadedSignature = duplicateSignature;
+    }
     return;
   }
 
-  const uploaded = await uploadToFirebase(payload);
-  if (uploaded) {
-    lastUploadedSignature = duplicateSignature;
+  plantState.light = light;
+  plantState.status = status;
+
+  if (action === 'water') {
+    plantState.water += WATER_PER_PRESS;
+    console.log(`수분 +${WATER_PER_PRESS} → ${plantState.water}`);
+    await logMessage(`수분 +${WATER_PER_PRESS} → ${plantState.water}`);
+  } else if (action === 'fertilizer') {
+    plantState.nutrition += NUTRITION_PER_PRESS;
+    console.log(`영양 +${NUTRITION_PER_PRESS} → ${plantState.nutrition}`);
+    await logMessage(`영양 +${NUTRITION_PER_PRESS} → ${plantState.nutrition}`);
   }
+
+  await uploadToFirebase(buildFirebasePayload());
+}
+
+function buildFirebasePayload() {
+  return {
+    device: plantState.device,
+    light: plantState.light,
+    status: plantState.status,
+    water: plantState.water,
+    nutrition: plantState.nutrition,
+    updatedAt: Date.now()
+  };
 }
 
 function validateIncomingData(receivedText) {
@@ -306,7 +355,7 @@ function validateIncomingData(receivedText) {
 
   const action = parsed.action ?? 'auto';
   if (!VALID_ACTIONS.has(action)) {
-    return { ok: false, reason: 'action 값은 auto, check, water 중 하나여야 합니다.' };
+    return { ok: false, reason: 'action 값은 auto, water, fertilizer 중 하나여야 합니다.' };
   }
 
   return {

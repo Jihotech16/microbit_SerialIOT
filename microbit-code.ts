@@ -28,9 +28,26 @@ function showStatusIcon(status: string): void {
     }
 }
 
+function showActionIcon(action: string): void {
+    if (action == "water") {
+        // 물방울 모양
+        basic.showLeds(`
+            . . # . .
+            . # # # .
+            # # # # #
+            . # # # .
+            . . # . .
+        `)
+    } else if (action == "fertilizer") {
+        // 영양제/반짝임 모양
+        basic.showIcon(IconNames.Diamond)
+    }
+}
+
 function sendPlantData(action: string): void {
     const light = input.lightLevel()
     const status = getLightStatus(light)
+
     const message = "{" +
         "\"device\":\"" + DEVICE_ID + "\"," +
         "\"light\":" + light + "," +
@@ -40,6 +57,12 @@ function sendPlantData(action: string): void {
 
     serial.writeLine(message)
     basic.pause(20)
+
+    if (action == "water" || action == "fertilizer") {
+        showActionIcon(action)
+        basic.pause(500)
+    }
+
     showStatusIcon(status)
 }
 
@@ -61,7 +84,7 @@ input.onButtonPressed(Button.A, function () {
 })
 
 input.onButtonPressed(Button.B, function () {
-    nextAction = "check"
+    nextAction = "fertilizer"
 })
 
 basic.forever(function () {

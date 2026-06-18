@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>micro:bit Firebase Web Bridge</title>
+    <title>micro:bit 식물 키우기</title>
     <link rel="stylesheet" href="./styles.css">
   </head>
   <body>
     <header class="topbar">
       <div>
-        <h1>micro:bit Firebase Bridge</h1>
-        <p>브라우저에서 micro:bit USB 시리얼 데이터를 받아 Firebase에 저장합니다.</p>
+        <h1>micro:bit 식물 키우기</h1>
+        <p>micro:bit 밝기 센서와 A/B 버튼으로 수분·영양을 관리합니다.</p>
       </div>
       <div class="status-pill" id="browserSupport">확인 중</div>
     </header>
@@ -42,12 +42,20 @@
             <dd id="lightValue">-</dd>
           </div>
           <div>
-            <dt>상태</dt>
+            <dt>밝기 상태</dt>
             <dd id="statusValue">-</dd>
           </div>
           <div>
-            <dt>동작</dt>
-            <dd id="actionValue">-</dd>
+            <dt>수분</dt>
+            <dd id="waterValue">-</dd>
+          </div>
+          <div>
+            <dt>영양</dt>
+            <dd id="nutritionValue">-</dd>
+          </div>
+          <div>
+            <dt>최근 입력</dt>
+            <dd id="lastEventValue">-</dd>
           </div>
         </dl>
       </section>
@@ -81,7 +89,7 @@
         <div class="toggle-row">
           <label>
             <input id="skipDuplicate" type="checkbox">
-            같은 밝기와 상태가 연속이면 저장 생략
+            auto 전송 시 밝기 변화 없으면 저장 생략
           </label>
           <button id="testFirebaseButton" class="secondary-button" type="button">Firebase 테스트</button>
         </div>
@@ -99,7 +107,7 @@
 
     <footer class="footer">
       <span>Chrome 또는 Edge 필요</span>
-      <span>micro:bit MakeCode에서 <code>serial.writeLine()</code> 사용</span>
+      <span>A: 물 +20 · B: 영양 +15</span>
       <span>저장 위치: <code>plants/{device}</code></span>
     </footer>
 
