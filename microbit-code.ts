@@ -1,6 +1,10 @@
 const DEVICE_ID = "device01"
+const AUTO_INTERVAL_MS = 5000
+const POLL_MS = 100
 
 serial.redirectToUSB()
+
+let nextAction = ""
 
 function getLightStatus(light: number): string {
     if (light < 60) {
@@ -35,18 +39,44 @@ function sendPlantData(action: string): void {
         "}"
 
     serial.writeLine(message)
+    basic.pause(20)
     showStatusIcon(status)
 }
 
+function waitForNextSend(): void {
+    let elapsed = 0
+
+    while (elapsed < AUTO_INTERVAL_MS) {
+        if (nextAction != "") {
+            return
+        }
+
+        basic.pause(POLL_MS)
+        elapsed += POLL_MS
+    }
+}
+
 input.onButtonPressed(Button.A, function () {
-    sendPlantData("water")
+    nextAction = "water"
 })
 
 input.onButtonPressed(Button.B, function () {
-    sendPlantData("check")
+    nextAction = "check"
 })
 
 basic.forever(function () {
-    sendPlantData("auto")
-    basic.pause(5000)
+    let action = "auto"
+
+    if (nextAction != "") {
+        action = nextAction
+        nextAction = ""
+    }
+
+    sendPlantData(action)
+
+    if (action == "auto") {
+        waitForNextSend()
+    } else {
+        basic.pause(100)
+    }
 })
