@@ -1,0 +1,10 @@
+{
+  "firebaseBaseUrl": "https://test1-724ff-default-rtdb.firebaseio.com",
+  "defaultDeviceId": "device01",
+  "baudRate": 115200,
+  "manualPort": "",
+  "skipDuplicate": false,
+  "logToFile": false,
+  "reconnectDelayMs": 5000,
+  "firebaseTimeoutMs": 8000
+}
